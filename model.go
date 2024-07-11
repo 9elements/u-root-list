@@ -20,12 +20,12 @@ type Model struct {
 	InfiniteScroll   bool
 	ScrollBarStyle   lipgloss.Style
 	// make sure to call Update after setting the Adapter, otherwise index out of range may occur
-	Adapter  Adapter
-	ViewMode bool
+	Adapter Adapter
 
 	focus            int
 	visibleItemStart int
 	hasFocus         bool
+	expanded         bool
 }
 
 func New(adapter Adapter) Model {
@@ -43,14 +43,12 @@ func (m Model) View() string {
 
 	for i := m.visibleItemStart; i < m.Adapter.Len() && i < m.visibleItemStart+m.VisibleItemCount; i++ {
 		var focus int
-		if m.ViewMode {
-			focus = FocusViewMode
-		} else if m.hasFocus {
+		if m.hasFocus {
 			focus = m.focus
 		} else {
 			focus = FocusDisabled
 		}
-		bob.WriteString(m.Adapter.View(i, focus) + m.Adapter.Sep())
+		bob.WriteString(m.Adapter.View(i, focus, m.expanded) + m.Adapter.Sep())
 	}
 
 	s := bob.String()
@@ -104,42 +102,29 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.expanded {
+			switch msg.String() {
+			case "esc":
+				m.expanded = false
+				return m, nil
+			}
+			return m, nil
+		}
 		switch msg.String() {
 		case "up":
-			if m.ViewMode {
-				m.updateView(-1)
-			} else {
-				m.updateFocus(-1)
-			}
-		case "down", "tab", "shift+tab":
-			if m.ViewMode {
-				m.updateView(+1)
-			} else {
-				m.updateFocus(+1)
-			}
+			m.updateFocus(-1)
+		case "down", "shift+tab":
+			m.updateFocus(+1)
 		case "home":
-			if m.ViewMode {
-				m.SetViewPosition(0)
-			} else {
-				m.SetItemFocus(0)
-			}
+			m.SetItemFocus(0)
 		case "end":
-			if m.ViewMode {
-				m.SetViewPosition(m.Adapter.Len())
-			} else {
-				m.SetItemFocus(m.Adapter.Len())
-			}
+			m.SetItemFocus(m.Adapter.Len())
 		case "pgup":
 			m.visibleItemStart = max(0, m.visibleItemStart-m.VisibleItemCount)
 		case "pgdown":
 			m.visibleItemStart = min(max(0, m.Adapter.Len()-m.VisibleItemCount), m.visibleItemStart+m.VisibleItemCount)
-		}
-	case tea.MouseMsg:
-		switch msg.Type {
-		case tea.MouseWheelUp:
-			m.updateView(-1)
-		case tea.MouseWheelDown:
-			m.updateView(+1)
+		case "enter":
+			m.expanded = true
 		}
 	}
 

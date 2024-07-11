@@ -8,5 +8,5 @@ type Adapter interface {
 	// item view, pos is position of the item, focus is currently focused item.
 	//
 	// tip: to check whether this item is focused or not, use focus == pos
-	View(pos, focus int) string
+	View(pos, focus int, expanded bool) string
 }

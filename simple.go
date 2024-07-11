@@ -1,12 +1,20 @@
 package list
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 )
+
+var maxLength int = 120
 
 type SimpleItem struct {
 	Title, Desc string
 	Disabled    bool
+
+	Options        []string
+	SelectedOption string
 }
 
 type SimpleItemList []SimpleItem
@@ -52,76 +60,41 @@ func (s *SimpleAdapter) Sep() string {
 	return "\n\n"
 }
 
-func (s *SimpleAdapter) View(pos, focus int) string {
-	var match *fuzzy.Match
-	if s.filterResult != nil {
-		match = &s.filterResult[pos]
-		pos = match.Index
-		if focus >= 0 {
-			focus = s.filterResult[focus].Index
-		}
-	}
-
+func (s *SimpleAdapter) View(pos, focus int, expanded bool) string {
 	item := s.items[pos]
 
-	var renderTitle, renderDesc, renderBorder, renderFilterMatch func(string) string
-	if !item.Disabled {
-		if focus == pos {
-			// focused
-			st := s.StyleNormal
-			renderTitle = st.titleSelected.Render
-			renderDesc = st.descSelected.Render
-			renderBorder = st.borderSelected.Render
-			renderFilterMatch = st.filterMatchSelected.Render
-		} else if focus == FocusDisabled {
-			// disabled
-			st := s.StyleDimmed
-			renderTitle = st.title.Render
-			renderDesc = st.desc.Render
-			renderBorder = border.Render
-			renderFilterMatch = st.filterMatch.Render
-		} else {
-			// blurred/viewmode
-			st := s.StyleNormal
-			renderTitle = st.title.Render
-			renderDesc = st.desc.Render
-			renderBorder = border.Render
-			renderFilterMatch = st.filterMatch.Render
-		}
+	if focus == pos {
+		return buildTitleAndHelptext(item, true, expanded)
 	} else {
-		st := s.StyleDimmed
-		if focus == pos {
-			// focused
-			renderTitle = st.titleSelected.Render
-			renderDesc = st.descSelected.Render
-			renderBorder = st.borderSelected.Render
-			renderFilterMatch = st.filterMatchSelected.Render
-		} else {
-			// blurred/disabled
-			renderTitle = st.title.Render
-			renderDesc = st.desc.Render
-			renderBorder = border.Render
-			renderFilterMatch = st.filterMatch.Render
-		}
+		return buildTitleAndHelptext(item, false, false)
+	}
+}
+
+func buildTitleAndHelptext(item SimpleItem, focus bool, expanded bool) string {
+	baseStyle := lipgloss.NewStyle()
+
+	if focus {
+		baseStyle = baseStyle.BorderStyle(lipgloss.NormalBorder()).BorderLeft(true)
+	} else {
+		baseStyle = baseStyle.PaddingLeft(2)
 	}
 
-	var title = item.Title
-	if match != nil {
-		var highlightedTitle string
-	Outer:
-		for i, r := range title {
-			for _, i2 := range match.MatchedIndexes {
-				if i == i2 {
-					highlightedTitle += renderFilterMatch(string(r))
-					continue Outer
-				}
-			}
-			highlightedTitle += renderTitle(string(r))
-		}
-		title = highlightedTitle
+	baseStyle = baseStyle.Align(lipgloss.Left)
+
+	maxItemTitleLength := maxLength - len(item.SelectedOption) - 5
+
+	padding := strings.Repeat(" ", maxLength-min(len(item.Title), maxItemTitleLength)+5-len(item.SelectedOption))
+
+	baseItem := baseStyle.Render(item.Title[:min(len(item.Title), maxItemTitleLength)] + padding + item.SelectedOption + "\n" +
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#707070")).Render(item.Desc))
+
+	if !expanded {
+		return baseItem
 	}
 
-	return renderBorder(renderTitle(title) + "\n" + renderDesc(item.Desc))
+	baseItem += "\n"
+	// Do we need a nested model here?
+	return baseItem
 }
 
 func (s *SimpleAdapter) Append(item ...SimpleItem) {
